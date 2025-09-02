@@ -122,24 +122,17 @@ def FormattedTitle(data, fallback_title=None):
                     title = title.strip()
         if "studio" in title_format:
             studio = data['studio']['name']
-
+        
         if "filename" in title_format:
             clean_filename = os.path.splitext(os.path.basename(data["files"][0]["path"]))[0]
-            title = title_format.format(
-                performer=performer,
-                title=title,
-                date=data['date'],
-                studio=studio,
-                filename=clean_filename
-            )
-        else:
-            title = title_format.format(
-                performer=performer,
-                title=title,
-                date=data['date'],
-                studio=studio
-            )
 
+        title = title_format.format(
+            performer=performer,
+            title=title,
+            date=data['date'],
+            studio=studio,
+            filename=clean_filename
+        )
     return title
 
 
@@ -384,20 +377,29 @@ class StashPlexAgent(Agent.Movies):
                         except:
                             pass
             if Prefs["CreatePerformerCollectionTags"]:
-                if not data["performers"] is None:
-                    for performer in data["performers"]:
-                        if Prefs["CreatePerformerCollectionTags"]:
-                            PerformerPrefix = Prefs["PrefixPerformerCollectionTags"]
-                        else:
-                            PerformerPrefix = "Actor: "
-                        if "name" in performer:
-                            actor_collection = PerformerPrefix + performer["name"]
+                performers = data.get("performers") or []
+                for performer in performers:
+                    # Read the UI value
+                    pref_val = Prefs.get("PrefixPerformerCollectionTags", "")
+
+                    # Treat "", ":", or pure whitespace as NO PREFIX
+                    if pref_val is None or pref_val.strip() in ("", ":"):
+                        PerformerPrefix = ""
+                    else:
+                        PerformerPrefix = pref_val
+
+                    name = performer.get("name")
+                    if name:
+                        actor_collection = u"%s%s" % (PerformerPrefix, name)
                         try:
-                            if DEBUG:
-                                Log("Adding Performer Collection: " + actor_collection)
+                            if Prefs.get("debug"):
+                                Log("Adding Performer Collection: %s" % actor_collection)
                             metadata.collections.add(actor_collection)
-                        except:
+                        except Exception as e:
+                            if Prefs.get("debug"):
+                                Log("Skipping performer collection add: %s" % e)
                             pass
+
 
             # Add the genres
             metadata.genres.clear()
@@ -483,7 +485,7 @@ class StashPlexAgent(Agent.Movies):
                     #clear_posters(metadata)
                     #clear_art(metadata)
                     metadata.posters[data["paths"]["screenshot"] + api_string] = Proxy.Media(thumb, sort_order=0)
-
+                    
                     # I comment out "art", as it looks much better when it's loaded via the files in Plex, especially on TV-mode. Otherwise you simply have a duplicate cover as background, not very useful.
                     #metadata.art[data["paths"]["screenshot"] + api_string] = Proxy.Media(thumb, sort_order=0)
                 except Exception as e:
@@ -532,4 +534,3 @@ class StashPlexAgent(Agent.Movies):
                     if DEBUG:
                         Log("Plex URL already exists on Stash")
                     pass
-
